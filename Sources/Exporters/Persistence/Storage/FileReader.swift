@@ -24,8 +24,8 @@ final class OrchestratedFileReader: FileReader {
   /// Orchestrator producing reference to readable file.
   private let orchestrator: FilesOrchestrator
 
-  /// Files marked as read.
-  private var filesRead: [ReadableFile] = []
+  /// Names of files marked as read that could not be deleted, so they are not exported again.
+  private(set) var undeletedFileNames: Set<String> = []
 
   init(orchestrator: FilesOrchestrator) {
     self.orchestrator = orchestrator
@@ -34,7 +34,7 @@ final class OrchestratedFileReader: FileReader {
   // MARK: - Reading batches
 
   func readNextBatch() -> Batch? {
-    if let file = orchestrator.getReadableFile(excludingFilesNamed: Set(filesRead.map(\.name))) {
+    if let file = orchestrator.getReadableFile(excludingFilesNamed: undeletedFileNames) {
       do {
         let fileData = try file.read()
         return Batch(data: fileData, file: file)
@@ -50,7 +50,7 @@ final class OrchestratedFileReader: FileReader {
   /// Currently called from flush method
   func onRemainingBatches(process: (Batch) -> Void) -> Bool {
     do {
-      try orchestrator.getAllFiles(excludingFilesNamed: Set(filesRead.map(\.name)))?.forEach {
+      try orchestrator.getAllFiles(excludingFilesNamed: undeletedFileNames)?.forEach {
         let fileData = try $0.read()
         process(Batch(data: fileData, file: $0))
       }
@@ -63,7 +63,8 @@ final class OrchestratedFileReader: FileReader {
   // MARK: - Accepting batches
 
   func markBatchAsRead(_ batch: Batch) {
-    orchestrator.delete(readableFile: batch.file)
-    filesRead.append(batch.file)
+    if !orchestrator.delete(readableFile: batch.file) {
+      undeletedFileNames.insert(batch.file.name)
+    }
   }
 }

@@ -111,10 +111,14 @@ class FilesOrchestrator {
     }
   }
 
-  func delete(readableFile: ReadableFile) {
+  @discardableResult
+  func delete(readableFile: ReadableFile) -> Bool {
     do {
       try readableFile.delete()
-    } catch {}
+      return true
+    } catch {
+      return false
+    }
   }
 
   // MARK: - Directory size management
